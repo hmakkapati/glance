@@ -323,9 +323,16 @@ class Driver(base.Driver):
 
         :param image_id: Image ID
         """
-        path = self.get_image_filepath(image_id)
+        cache_status = 'active'
+        if self.is_being_cached(image_id):
+            cache_status = 'incomplete'
+        path = self.get_image_filepath(image_id, cache_status=cache_status)
         with open(path, 'rb') as cache_file:
             yield cache_file
+
+        # Don't update count if the image is not cached
+        if not self.is_cached(image_id):
+            return
         path = self.get_image_filepath(image_id)
         inc_xattr(path, 'hits', 1)
 

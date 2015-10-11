@@ -121,6 +121,15 @@ class ImageCache(object):
         """
         return self.driver.is_queued(image_id)
 
+    def is_being_cached(self, image_id):
+        """
+        Returns True if the image with supplied id is currently
+        in the process of having its image file cached.
+
+        :param image_id: Image ID
+        """
+        return self.driver.is_being_cached(image_id)
+
     def get_cache_size(self):
         """
         Returns the total size in bytes of the image cache.

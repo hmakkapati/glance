@@ -24,6 +24,10 @@ the local cached copy of the image file is returned.
 
 import re
 
+try:
+    from eventlet import sleep
+except ImportError:
+    from time import sleep
 from oslo_log import log as logging
 import webob
 
@@ -149,7 +153,8 @@ class CacheFilter(wsgi.Middleware):
 
         self._stash_request_info(request, image_id, method, version)
 
-        if request.method != 'GET' or not self.cache.is_cached(image_id):
+        if request.method != 'GET' or not (self.cache.is_cached(image_id) or
+                                           self.cache.is_being_cached(image_id)):
             return None
         method = getattr(self, '_get_%s_image_metadata' % version)
         image_metadata = method(request, image_id)
@@ -164,7 +169,7 @@ class CacheFilter(wsgi.Middleware):
             return None
 
         LOG.debug("Cache hit for image '%s'", image_id)
-        image_iterator = self.get_from_cache(image_id)
+        image_iterator = self.get_from_cache(image_id, request)
         method = getattr(self, '_process_%s_request' % version)
 
         try:
@@ -315,9 +320,43 @@ class CacheFilter(wsgi.Middleware):
             return response.status_int
         return response.status
 
-    def get_from_cache(self, image_id):
+    def get_from_cache(self, image_id, request):
         """Called if cache hit"""
+
+        def waiting_chunk_iter(fp, chunk_size=65536):
+            """
+            Return an iterator yielding fixed size chunks of cached image data.
+            If the underlying image data is still being cached, it waits for
+            the data to arrive into cache.
+
+            :param fp: a file-like object that is image data which is cached or
+            still being cached.
+            :param chunk_size: maximum size of chunk
+            """
+            while True:
+                chunk = fp.read(chunk_size)
+                if chunk:
+                    yield chunk
+                elif self.cache.is_being_cached(image_id):
+                    LOG.debug("Waiting for image to be cached: %s" % image_id)
+                    sleep(0.5)
+                else:
+                    LOG.debug("Done serving image out of cache: %s" % image_id)
+                    break
+
+        caching_image = self.cache.is_being_cached(image_id)
+        if caching_image:
+            LOG.debug("Serving caching image out of cache: %s" % image_id)
+
         with self.cache.open_for_read(image_id) as cache_file:
-            chunks = utils.chunkiter(cache_file)
+            chunks = waiting_chunk_iter(cache_file)
             for chunk in chunks:
                 yield chunk
+
+        if caching_image and not self.cache.is_cached(image_id):
+            msg = _("Image download failed due to unknown reasons. "
+                    "Please re-try!")
+            LOG.debug("Caching image %s failed to cache successfully"
+                      % image_id)
+            raise webob.exc.HTTPInternalServerError(explanation=msg,
+                                                    request=request)

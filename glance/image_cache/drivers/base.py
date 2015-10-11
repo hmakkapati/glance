@@ -111,6 +111,15 @@ class Driver(object):
         """
         raise NotImplementedError
 
+    def is_being_cached(self, image_id):
+        """
+        Returns True if the image with supplied id is currently
+        in the process of having its image file cached.
+
+        :param image_id: Image ID
+        """
+        raise NotImplementedError
+
     def is_queued(self, image_id):
         """
         Returns True if the image identifier is in our cache queue.

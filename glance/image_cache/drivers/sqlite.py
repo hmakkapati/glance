@@ -366,10 +366,17 @@ class Driver(base.Driver):
 
         :param image_id: Image ID
         """
-        path = self.get_image_filepath(image_id)
+        cache_status = 'active'
+        if self.is_being_cached(image_id):
+            cache_status = 'incomplete'
+        path = self.get_image_filepath(image_id, cache_status=cache_status)
         with open(path, 'rb') as cache_file:
             yield cache_file
         now = time.time()
+
+        # Don't update db if the image is not cached
+        if not self.is_cached(image_id):
+            return
         with self.get_db() as db:
             db.execute("""UPDATE cached_images
                        SET hits = hits + 1, last_accessed = ?
