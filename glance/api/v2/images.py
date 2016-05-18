@@ -86,6 +86,14 @@ class ImagesController(object):
 
         return image
 
+    def _add_custom_filters(self, context, filters):
+        custom_filter = filters.setdefault('custom_filter', {})
+
+        if 'foo' in context.roles and 'com.rackspace__1__visible_to_foo' not in filters:
+            custom_filter['com.rackspace__1__visible_to_foo'] = '1'
+        elif 'com.rackspace__1__visible_to_non_foo' not in filters:
+            custom_filter['com.rackspace__1__visible_to_non_foo'] = '1'
+
     def index(self, req, marker=None, limit=None, sort_key=None,
               sort_dir=None, filters=None, member_status='accepted'):
         sort_key = ['created_at'] if not sort_key else sort_key
@@ -96,6 +104,9 @@ class ImagesController(object):
         if filters is None:
             filters = {}
         filters['deleted'] = False
+
+        if CONF.enable_custom_filters:
+            self._add_custom_filters(req.context, filters)
 
         if limit is None:
             limit = CONF.limit_param_default

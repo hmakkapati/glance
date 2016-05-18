@@ -438,6 +438,7 @@ def _make_conditions_from_filters(filters, is_public=None):
     image_conditions = []
     prop_conditions = []
     tag_conditions = []
+    custom_conditions = []
 
     if is_public is not None:
         image_conditions.append(models.Image.is_public == is_public)
@@ -455,6 +456,10 @@ def _make_conditions_from_filters(filters, is_public=None):
     for (k, v) in filters.pop('properties', {}).items():
         prop_filters = _make_image_property_condition(key=k, value=v)
         prop_conditions.append(prop_filters)
+
+    for (k, v) in filters.pop('custom_filter', {}).items():
+        custom_filters = _make_image_property_condition(key=k, value=v)
+        custom_conditions.append(custom_filters)
 
     if 'changes-since' in filters:
         # normalize timestamp to UTC, as sqlalchemy doesn't appear to
@@ -533,7 +538,7 @@ def _make_conditions_from_filters(filters, is_public=None):
             prop_filters = _make_image_property_condition(key=k, value=value)
             prop_conditions.append(prop_filters)
 
-    return image_conditions, prop_conditions, tag_conditions
+    return image_conditions, prop_conditions, tag_conditions, custom_conditions
 
 
 def _make_image_property_condition(key, value):
@@ -544,7 +549,7 @@ def _make_image_property_condition(key, value):
 
 
 def _select_images_query(context, image_conditions, admin_as_user,
-                         member_status, visibility):
+                         member_status, visibility, custom_conditions):
     session = get_session()
 
     img_conditional_clause = sa_sql.and_(*image_conditions)
@@ -570,6 +575,13 @@ def _select_images_query(context, image_conditions, admin_as_user,
     query_image = session.query(models.Image).filter(img_conditional_clause)
     if regular_user:
         query_image = query_image.filter(models.Image.is_public == True)
+
+        if custom_conditions:
+            for custom_condition in custom_conditions:
+                query_image = query_image.join(models.ImageProperty,
+                                               aliased=True)\
+                    .filter(sa_sql.and_(*custom_condition))
+
         query_image_owner = None
         if context.owner is not None:
             query_image_owner = session.query(models.Image).filter(
@@ -626,14 +638,15 @@ def image_get_all(context, filters=None, marker=None, limit=None,
     showing_deleted = 'changes-since' in filters or filters.get('deleted',
                                                                 False)
 
-    img_cond, prop_cond, tag_cond = _make_conditions_from_filters(
-        filters, is_public)
+    img_cond, prop_cond, tag_cond, custom_conditions = \
+        _make_conditions_from_filters(filters, is_public)
 
     query = _select_images_query(context,
                                  img_cond,
                                  admin_as_user,
                                  member_status,
-                                 visibility)
+                                 visibility,
+                                 custom_conditions)
 
     if visibility is not None:
         if visibility == 'public':
