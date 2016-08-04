@@ -1,4 +1,4 @@
-"""update_metadef_os_nova_server
+"""update metadef os_nova_server
 
 Revision ID: mitaka02
 Revises: mitaka01

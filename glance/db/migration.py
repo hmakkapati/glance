@@ -31,6 +31,14 @@ from glance.db.sqlalchemy import api as db_api
 
 _IMPL = None
 _LOCK = threading.Lock()
+EXPAND_BRANCH = 'expand'
+CONTRACT_BRANCH = 'contract'
+MIGRATION_BRANCHES = (EXPAND_BRANCH, CONTRACT_BRANCH)
+MITAKA = 'mitaka'
+NEWTON = 'newton'
+OCATA = 'ocata'
+RELEASES = (MITAKA, NEWTON, OCATA)
+
 
 db_options.set_defaults(cfg.CONF)
 

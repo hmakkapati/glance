@@ -1,4 +1,4 @@
-"""add_image_created_updated_idx
+"""add index on created_at and updated_at columns of 'images' table
 
 Revision ID: mitaka01
 Revises: liberty
